@@ -3,9 +3,12 @@
 
 -- Connect 
 print('\nAll About Circuits main.lua\n')
+wifi.sta.connect()
 tmr.alarm(0, 1000, 1, function()
 	if wifi.sta.getip() == nil then
 		print("Connecting to AP...\n")
+		print(wifi.sta.status())
+		print(wifi.sta.getip())
 	else
 		ip, nm, gw=wifi.sta.getip()
 		print("IP Info: \nIP Address: ",ip)
