@@ -18,7 +18,7 @@ import select
 # defines:
 maxclouds = 10
 port = 8450
-host = "192.168.111.152"
+host = "192.168.0.104"
 bufsize = 128
 maxconns = maxclouds
 debug = True
@@ -43,7 +43,11 @@ def update_sql(chipid, ip):
 			if str(item) == str(chipid):
 				if debug:
 					print "ID MATCHES!: " + chipid
+
 				found = 1
+				update = ("UPDATE clouds SET last_contact='" + str(int(time.time())) + "' ")
+				cursor.execute(update)
+				cnx.commit()
 
 	if found == 0:
 		update = ("INSERT INTO clouds (id, ip, color, default_color, last_contact) VALUES ('" + str(chipid) + "', '" + str(ip) + "', '255,255,255', '255,255,255',  '" + str(int(time.time())) + "')")
@@ -80,7 +84,7 @@ def set_all_colors(color):
 	cnx = mysql.connector.connect(**connargs)
 	cursor = cnx.cursor()
 
-	update_colors = ("UPDATE clouds SET color='" + color + "'")
+	update_colors = ("UPDATE clouds SET color='" + str(color) + "'")
 	cursor.execute(update_colors)
 
 	# error checking here..
@@ -92,7 +96,8 @@ def set_all_colors(color):
 def reset_all_colors():
 	pass
 
-def get_color_by_id(chipid):
+def get_color_by_id(chipid, type):
+	retval = 0
 	connargs = {
 		'user': 'root',
 		'password': 'toor',
@@ -103,7 +108,7 @@ def get_color_by_id(chipid):
 	cnx = mysql.connector.connect(**connargs)
 	cursor = cnx.cursor()
 
-	get_color = ("SELECT color FROM clouds WHERE id='" + chipid + "'")
+	get_color = ("SELECT " + str(type) + " FROM clouds WHERE id='" + str(chipid) + "'")
 	cursor.execute(get_color)
 	
 	for color in cursor:
@@ -118,14 +123,21 @@ def handler(conn, addr):
 	conn.setblocking(0)
 	x = 0 
 	color_delay = 0
+	newcolor = 0
+	oldcolor = 0
+	chipid = 0
 	while 1:
 		if x >= 30:
-			# conn.send("ledclr(" + from_sql[1] + ")")
 			conn.send("node.chipid()")
 			x = 0
 		
 		x += 1
 		time.sleep(0.5)
+
+		newcolor = get_color_by_id(chipid, "color")	
+
+		if oldcolor != newcolor:
+			conn.send("ledclr(" + str(newcolor) + ")")
 
 
 		try:
@@ -133,20 +145,19 @@ def handler(conn, addr):
 			print data
 
 			if data.endswith("BUTTON"):
-				newcolor = get_color_by_id(data.split(":")[0])		
+				newcolor = get_color_by_id(data.split(":")[0], "default_color")		
 				print newcolor
 				set_all_colors(newcolor)
 				conn.send("ledclr(" + newcolor + ")")
 			elif len(data) == 7:
 				update_sql(data, addr[0])
+				chipid = data
 
 
 		except socket.error:
 			pass
 
-		# if data == update, store info in table
-		# if data == button, do a set_all_colors. +1 to button push counter as well
-		# if current_time = 2am, do a reset!
+		oldcolor = newcolor
 			
 serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 serversocket.bind((host, port))
